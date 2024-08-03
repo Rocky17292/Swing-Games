@@ -1,0 +1,472 @@
+// Source code is decompiled from a .class file using FernFlower decompiler.
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionListener;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Random;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.UnsupportedAudioFileException;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+
+public class AsteroidGame extends JFrame implements ActionListener, KeyListener, MouseListener, MouseMotionListener {
+   private static final int WIDTH = 800;
+   private static final int HEIGHT = 600;
+   private static final int PLAYER_SIZE = 30;
+   private static final int ASTEROID_SIZE = 30;
+   private static final int ASTEROID_SPEED = 3;
+   private static final int ASTEROID_INTERVAL = 1000;
+   private static final int BULLET_SPEED = 5;
+   private static final int POWER_UP_SIZE = 20;
+   private static final int HEALTH_POWER_UP_AMOUNT = 25;
+   private int playerX;
+   private int playerY;
+   private int playerSpeed;
+   private boolean leftPressed;
+   private boolean rightPressed;
+   private boolean upPressed;
+   private boolean downPressed;
+   private boolean spacePressed;
+   private List<Point> asteroids;
+   private List<Point> bullets;
+   private List<Point> powerUps;
+   private Timer speedBoostTimer;
+   private int score = 0;
+   private int health = 100;
+   private JLabel scoreLabel;
+   private JLabel healthLabel;
+   private Clip shootSound;
+   private Clip explosionSound;
+   private Clip powerUpSound;
+   private Color powerUpColor;
+   private String displayMessage = "";
+   private int displayMessageTimer = 0;
+   private static final int DISPLAY_MESSAGE_TIME = 40;
+
+   public AsteroidGame() {
+      this.setTitle("Asteroid Game");
+      this.setSize(800, 600);
+      this.setDefaultCloseOperation(3);
+      this.setLocationRelativeTo((Component)null);
+      this.playerX = 385;
+      this.playerY = 550;
+      this.playerSpeed = 5;
+      this.asteroids = new ArrayList();
+      this.bullets = new ArrayList();
+      this.powerUps = new ArrayList();
+      Timer timer = new Timer(16, this);
+      timer.start();
+      Timer asteroidTimer = new Timer(1000, (e) -> {
+         this.spawnAsteroid();
+      });
+      asteroidTimer.start();
+      Timer powerUpTimer = new Timer(10000, (e) -> {
+         this.spawnPowerUp();
+      });
+      powerUpTimer.start();
+      this.speedBoostTimer = new Timer(0, (e) -> {
+         this.deactivateSpeedBoost();
+      });
+      this.scoreLabel = new JLabel("Score: 0");
+      this.scoreLabel.setForeground(Color.YELLOW);
+      this.add(this.scoreLabel, "West");
+      this.healthLabel = new JLabel("Health: 100");
+      this.healthLabel.setForeground(Color.RED);
+      this.healthLabel.setHorizontalAlignment(4);
+      this.add(this.healthLabel, "East");
+      this.loadSounds();
+      this.addKeyListener(this);
+      this.setFocusable(true);
+      this.getContentPane().setBackground(Color.BLACK);
+      this.createMenu();
+      this.addMouseListener(this);
+      this.addMouseMotionListener(this);
+   }
+
+   private void createMenu() {
+      JMenuBar menuBar = new JMenuBar();
+      this.setJMenuBar(menuBar);
+      JMenu gameMenu = new JMenu("Game");
+      menuBar.add(gameMenu);
+      JMenuItem restartItem = new JMenuItem("Restart");
+      restartItem.addActionListener((e) -> {
+         this.restartGame();
+      });
+      gameMenu.add(restartItem);
+      JMenuItem exitItem = new JMenuItem("Exit");
+      exitItem.addActionListener((e) -> {
+         System.exit(0);
+      });
+      gameMenu.add(exitItem);
+   }
+
+   private void restartGame() {
+      this.asteroids.clear();
+      this.bullets.clear();
+      this.powerUps.clear();
+      this.score = 0;
+      this.health = 100;
+      this.scoreLabel.setText("Score: 0");
+      this.healthLabel.setText("Health: 100");
+      this.spawnAsteroid();
+      this.repaint();
+   }
+
+   private void loadSounds() {
+      try {
+         String basePath = "C:\\Users\\Rushikesh\\Java Swing\\FirstProject\\src\\";
+         AudioInputStream shootStream = AudioSystem.getAudioInputStream(new File(basePath + "shoot.wav"));
+         AudioInputStream explosionStream = AudioSystem.getAudioInputStream(new File(basePath + "explosion.wav"));
+         AudioInputStream powerUpStream = AudioSystem.getAudioInputStream(new File(basePath + "powerup.wav"));
+         this.shootSound = AudioSystem.getClip();
+         this.shootSound.open(shootStream);
+         this.explosionSound = AudioSystem.getClip();
+         this.explosionSound.open(explosionStream);
+         this.powerUpSound = AudioSystem.getClip();
+         this.powerUpSound.open(powerUpStream);
+      } catch (IOException | LineUnavailableException | UnsupportedAudioFileException var5) {
+         var5.printStackTrace();
+      }
+
+   }
+
+   private void playSound(Clip sound) {
+      if (sound != null) {
+         sound.setFramePosition(0);
+         sound.start();
+      }
+
+   }
+
+   private void spawnPowerUp() {
+      int powerUpX = (new Random()).nextInt(780);
+      int powerUpY = (new Random()).nextInt(580);
+      this.powerUps.add(new Point(powerUpX, powerUpY));
+      this.powerUpColor = this.getRandomColor();
+   }
+
+   private void activateSpeedBoost() {
+      this.playSound(this.powerUpSound);
+   }
+
+   private void deactivateSpeedBoost() {
+      this.playerSpeed = 5;
+      this.speedBoostTimer.stop();
+   }
+
+   private void spawnAsteroid() {
+      int asteroidX = (new Random()).nextInt(770);
+      int asteroidY = -30;
+      this.asteroids.add(new Point(asteroidX, asteroidY));
+   }
+
+   private void moveBullets() {
+      Iterator<Point> iterator = this.bullets.iterator();
+
+      while(iterator.hasNext()) {
+         Point bullet = (Point)iterator.next();
+         bullet.y -= 5;
+         if (bullet.y < 0) {
+            iterator.remove();
+         }
+      }
+
+   }
+
+   private void moveAsteroids() {
+      Iterator<Point> iterator = this.asteroids.iterator();
+
+      while(iterator.hasNext()) {
+         Point asteroid = (Point)iterator.next();
+         asteroid.y += 3;
+         if (asteroid.y > 600) {
+            iterator.remove();
+         }
+      }
+
+   }
+
+   private void movePowerUps() {
+      Iterator<Point> iterator = this.powerUps.iterator();
+
+      while(iterator.hasNext()) {
+         Point powerUp = (Point)iterator.next();
+         powerUp.y += 2;
+         if (powerUp.y > 600) {
+            iterator.remove();
+         }
+      }
+
+   }
+
+   private void checkCollisions() {
+      Rectangle playerRect = new Rectangle(this.playerX, this.playerY, 30, 30);
+      Iterator<Point> bulletIterator = this.bullets.iterator();
+
+      Point asteroid;
+      while(bulletIterator.hasNext()) {
+         asteroid = (Point)bulletIterator.next();
+         Rectangle bulletRect = new Rectangle(asteroid.x, asteroid.y, 2, 8);
+         Iterator<Point> asteroidIterator = this.asteroids.iterator();
+
+         while(asteroidIterator.hasNext()) {
+            Point asteroid = (Point)asteroidIterator.next();
+            Rectangle asteroidRect = new Rectangle(asteroid.x, asteroid.y, 30, 30);
+            if (bulletRect.intersects(asteroidRect)) {
+               bulletIterator.remove();
+               asteroidIterator.remove();
+               this.activateSpeedBoost();
+               this.increaseScore(10);
+            }
+         }
+      }
+
+      Iterator var9 = this.asteroids.iterator();
+
+      Rectangle powerUpRect;
+      while(var9.hasNext()) {
+         asteroid = (Point)var9.next();
+         powerUpRect = new Rectangle(asteroid.x, asteroid.y, 30, 30);
+         if (playerRect.intersects(powerUpRect)) {
+            this.reduceHealth(2);
+         }
+      }
+
+      Iterator<Point> powerUpIterator = this.powerUps.iterator();
+
+      while(powerUpIterator.hasNext()) {
+         Point powerUp = (Point)powerUpIterator.next();
+         powerUpRect = new Rectangle(powerUp.x, powerUp.y, 20, 20);
+         if (playerRect.intersects(powerUpRect)) {
+            powerUpIterator.remove();
+            this.activateSpeedBoost();
+            this.increaseScore(50);
+         }
+      }
+
+   }
+
+   private void increaseScore(int points) {
+      this.score += points;
+      this.scoreLabel.setText("Score: " + this.score);
+      this.setDisplayMessage("+" + points + " Score");
+   }
+
+   private void reduceHealth(int amount) {
+      this.health -= amount;
+      this.health = Math.max(0, this.health);
+      this.healthLabel.setText("Health: " + this.health);
+      if (this.health == 0) {
+         this.gameOver();
+      } else {
+         this.setDisplayMessage("-" + amount + " Health");
+      }
+
+   }
+
+   private void increaseHealth(int amount) {
+      this.health += amount;
+      this.health = Math.min(100, this.health);
+      this.healthLabel.setText("Health: " + this.health);
+      this.setDisplayMessage("+" + amount + " Health");
+   }
+
+   private void gameOver() {
+      JOptionPane.showMessageDialog(this, "Game Over\nYour Score: " + this.score, "Game Over", 1);
+      System.exit(0);
+   }
+
+   private Color getRandomColor() {
+      return new Color((new Random()).nextFloat(), (new Random()).nextFloat(), (new Random()).nextFloat());
+   }
+
+   public void actionPerformed(ActionEvent e) {
+      this.movePlayer();
+      this.moveBullets();
+      this.moveAsteroids();
+      this.movePowerUps();
+      this.checkCollisions();
+      if (this.displayMessageTimer > 0) {
+         --this.displayMessageTimer;
+      }
+
+      this.repaint();
+   }
+
+   private void movePlayer() {
+      if (this.leftPressed && this.playerX - this.playerSpeed >= 0) {
+         this.playerX -= this.playerSpeed;
+      }
+
+      if (this.rightPressed && this.playerX + 30 + this.playerSpeed <= 800) {
+         this.playerX += this.playerSpeed;
+      }
+
+      if (this.upPressed && this.playerY - this.playerSpeed >= 0) {
+         this.playerY -= this.playerSpeed;
+      }
+
+      if (this.downPressed && this.playerY + 30 + this.playerSpeed <= 600) {
+         this.playerY += this.playerSpeed;
+      }
+
+      if (this.spacePressed) {
+         this.shootBullet();
+      }
+
+   }
+
+   private void shootBullet() {
+      int bulletX = this.playerX + 15 - 1;
+      int bulletY = this.playerY;
+      this.bullets.add(new Point(bulletX, bulletY));
+      this.playSound(this.shootSound);
+   }
+
+   public void paint(Graphics g) {
+      Image offScreenBuffer = this.createImage(800, 600);
+      Graphics offScreenGraphics = offScreenBuffer.getGraphics();
+      super.paint(offScreenGraphics);
+      offScreenGraphics.setColor(Color.BLUE);
+      offScreenGraphics.fillRect(this.playerX, this.playerY, 30, 30);
+      offScreenGraphics.setColor(Color.RED);
+      Iterator var5 = this.asteroids.iterator();
+
+      Point powerUp;
+      while(var5.hasNext()) {
+         powerUp = (Point)var5.next();
+         offScreenGraphics.fillRect(powerUp.x, powerUp.y, 30, 30);
+      }
+
+      offScreenGraphics.setColor(Color.WHITE);
+      var5 = this.bullets.iterator();
+
+      while(var5.hasNext()) {
+         powerUp = (Point)var5.next();
+         offScreenGraphics.fillRect(powerUp.x, powerUp.y, 2, 8);
+      }
+
+      offScreenGraphics.setColor(this.powerUpColor);
+      var5 = this.powerUps.iterator();
+
+      while(var5.hasNext()) {
+         powerUp = (Point)var5.next();
+         offScreenGraphics.fillRect(powerUp.x, powerUp.y, 20, 20);
+      }
+
+      if (this.displayMessageTimer > 0) {
+         offScreenGraphics.setColor(Color.YELLOW);
+         offScreenGraphics.drawString(this.displayMessage, 350, 300);
+      }
+
+      g.drawImage(offScreenBuffer, 0, 0, this);
+      Toolkit.getDefaultToolkit().sync();
+   }
+
+   private void setDisplayMessage(String message) {
+      this.displayMessage = message;
+      this.displayMessageTimer = 40;
+   }
+
+   public void keyPressed(KeyEvent e) {
+      if (e.getKeyCode() == 37) {
+         this.leftPressed = true;
+      }
+
+      if (e.getKeyCode() == 39) {
+         this.rightPressed = true;
+      }
+
+      if (e.getKeyCode() == 38) {
+         this.upPressed = true;
+      }
+
+      if (e.getKeyCode() == 40) {
+         this.downPressed = true;
+      }
+
+      if (e.getKeyCode() == 32) {
+         this.spacePressed = true;
+      }
+
+   }
+
+   public void keyReleased(KeyEvent e) {
+      if (e.getKeyCode() == 37) {
+         this.leftPressed = false;
+      }
+
+      if (e.getKeyCode() == 39) {
+         this.rightPressed = false;
+      }
+
+      if (e.getKeyCode() == 38) {
+         this.upPressed = false;
+      }
+
+      if (e.getKeyCode() == 40) {
+         this.downPressed = false;
+      }
+
+      if (e.getKeyCode() == 32) {
+         this.spacePressed = false;
+      }
+
+   }
+
+   public void mouseMoved(MouseEvent e) {
+   }
+
+   public void mouseClicked(MouseEvent e) {
+      this.shootBullet();
+   }
+
+   public void keyTyped(KeyEvent e) {
+   }
+
+   public static void main(String[] args) {
+      SwingUtilities.invokeLater(() -> {
+         AsteroidGame game = new AsteroidGame();
+         game.setVisible(true);
+      });
+   }
+
+   public void mouseDragged(MouseEvent e) {
+   }
+
+   public void mousePressed(MouseEvent e) {
+   }
+
+   public void mouseReleased(MouseEvent e) {
+   }
+
+   public void mouseEntered(MouseEvent e) {
+   }
+
+   public void mouseExited(MouseEvent e) {
+   }
+}
